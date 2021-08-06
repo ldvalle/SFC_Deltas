@@ -1,0 +1,23 @@
+PROGRAM = actutec.exe
+
+OBJECTS = actutec.o 
+
+OBJS_LIB = sqlerror.o
+
+OTROS = 
+
+%if "$(SYSTEM)" == "AIX/RS-6000"
+.include /usr/pvcs/etc/build.def
+%else
+.include /pvcs/etc/build.def
+%endif
+
+#UPDATE#
+
+actutec.o : actutec.ec                                                    \
+            sqlerror.h 
+
+sqlerror.o : sqlerror.ec                                                  \
+             sqlerror.h 
+
+#ENDUPDATE#

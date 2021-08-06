@@ -1,0 +1,39 @@
+PROGRAM = sfc_ots.exe
+
+OBJECTS = sfc_ots.o 
+
+OBJS_LIB = sqlerror.o ustring.o macmath.o
+
+OTROS =
+
+LXFLAGS = -lsynmail -lmail
+CXFLAGS = -D_LARGE_FILES -qlonglong
+
+%If "$(SYSTEM)" == "AIX/RS-6000"
+.include /usr/pvcs/etc/build.def
+%Else
+.include /pvcs/etc/build.def
+%EndIf
+
+#UPDATE#
+
+sfc_ots.o : sfc_ots.ec   \
+              sfc_ots.h           \
+              codigos.h                    \
+              sqlerror.h                   \
+              lotes.h                      \
+              pardud.h                     \
+              tabla_errores.h              \
+              ustring.h					   \
+              macmath.h                    \
+              synmail.h
+
+sqlerror.o : sqlerror.ec                   \
+             sqlerror.h
+
+ustring.o : ustring.c                      \
+            ustring.h
+
+macmath.o : macmath.c 
+
+#ENDUPDATE#

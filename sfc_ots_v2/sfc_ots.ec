@@ -98,11 +98,21 @@ $long lNroCliente;
 	iContaLog=0;
 	
    fp=pFileUnx;
+printf("Cargando Temporal\n");   
+	/****** Cargo Temporal ********/
+	$EXECUTE insOts USING :glFechaDesde, :glFechaHasta, :glFechaDesde, :glFechaHasta;
+	
+	if( SQLCODE != 0){
+		printf("Fallo Carga de Temporal\n");
+   		exit(1);
+	}
+printf("Temporal Cargada\n");	
 	/*********************************************
 				AREA CURSOR PPAL
 	**********************************************/
+	CreaPrepare2();
 
-   $OPEN curOTS USING :gsFechaDesdeDT, :gsFechaHastaDT, :gsFechaDesdeDT, :gsFechaHastaDT, :glFechaDesde, :glFechaHasta,:gsFechaDesdeDT, :gsFechaHastaDT;
+   $OPEN curOTS;
 
    	while(LeoOTS(&regOT)){
 
@@ -339,9 +349,53 @@ $char sAux[1000];
 	
 	$PREPARE selFechaActual FROM $sql;	
 
-
+	/******* Prepara Temporal ******/
+	$PREPARE insOts FROM "SELECT s.rowid indice, 
+		o.mensaje_xnear,
+		o.numero_orden, 
+		s.osm_nro_orden,
+		o.tipo_orden,
+		o.tema, 
+		o.trabajo,
+		s.osm_status, 
+		s.osm_desc_status,
+		m.ot_motivo,
+		o.fecha_inicio,
+		s.osm_fecha_status, 
+		s.osm_hora_status,
+		o.numero_cliente,
+		TO_CHAR(s.osm_fecha_status, '%Y-%m-%dT') || TO_CHAR(s.osm_hora_status, '%H:%M:%S.000Z') fecha_sts_fmt
+		FROM ot_sap_mac s, ot_mac m, orden o
+		WHERE s.osm_fecha_status BETWEEN ? AND ?
+		AND m.ot_nro_orden = s.osm_nro_orden[5,12]
+		AND o.mensaje_xnear = m.ot_mensaje_xnear
+		UNION
+		SELECT s.rowid indice, 
+		o.mensaje_xnear, 
+		o.numero_orden,
+		s.osm_nro_orden,
+		o.tipo_orden,
+		o.tema, 
+		o.trabajo,
+		s.osm_status, 
+		s.osm_desc_status,
+		m.cod_motivo,
+		o.fecha_inicio,
+		s.osm_fecha_status, 
+		s.osm_hora_status,
+		o.numero_cliente,
+		TO_CHAR(s.osm_fecha_status, '%Y-%m-%dT') || TO_CHAR(s.osm_hora_status, '%H:%M:%S.000Z') fecha_sts_fmt
+		FROM ot_sap_mac s
+		, ot_final m
+		, orden o
+		WHERE s.osm_fecha_status BETWEEN ? AND ?
+		AND m.otf_nro_orden = s.osm_nro_orden[5,12]
+		AND o.mensaje_xnear = m.mensaje_xnear
+		INTO TEMP tempo1 WITH NO LOG ";
+		
 
    /******** Cursor de OTs ****************/
+/*   
 	$PREPARE selOTS FROM "SELECT DISTINCT om.ot_mensaje_xnear,
 	om.ot_nro_orden,
 	o.numero_orden,
@@ -394,49 +448,9 @@ $char sAux[1000];
 	ORDER BY 1, 9 ";
 	
 	$DECLARE curOTS CURSOR WITH HOLD FOR selOTS;
-	
-/*
-select s.rowid indice, o.mensaje_xnear, 
-s.osm_nro_orden,
-o.tipo_orden,
-o.tema, 
-o.trabajo,
-s.osm_status, 
-s.osm_desc_status,
-m.ot_motivo,
-s.osm_numero_cliente,  
-o.fecha_inicio,
-s.osm_fecha_status, 
-s.osm_hora_status,
-o.numero_cliente,
-to_char(s.osm_fecha_status, '%Y-%m-%dT') || to_char(s.osm_hora_status, '%H:%M:%S.000Z') fecha_sts_fmt
-from ot_sap_mac s, ot_mac m, orden o
-where s.osm_fecha_status between '2021-06-25' and '2021-06-26'
-and m.ot_nro_orden = s.osm_nro_orden[5,12]
-and o.mensaje_xnear = m.ot_mensaje_xnear
-UNION
-select s.rowid indice, o.mensaje_xnear, 
-s.osm_nro_orden,
-o.tipo_orden,
-o.tema, 
-o.trabajo,
-s.osm_status, 
-s.osm_desc_status,
-m.cod_motivo,
-s.osm_numero_cliente,  
-o.fecha_inicio,
-s.osm_fecha_status, 
-s.osm_hora_status,
-o.numero_cliente,
-to_char(s.osm_fecha_status, '%Y-%m-%dT') || to_char(s.osm_hora_status, '%H:%M:%S.000Z') fecha_sts_fmt
-from ot_sap_mac s
-, ot_final m
-, orden o
-where s.osm_fecha_status between '2021-06-25' and '2021-06-26'
-and m.otf_nro_orden = s.osm_nro_orden[5,12]
-and o.mensaje_xnear = m.mensaje_xnear
-into temp tempo1 with no log;
 
+*/	
+/*
 select * from tempo1
 order by mensaje_xnear
 
@@ -473,6 +487,36 @@ order by mensaje_xnear
 		ORDER BY pagina ";
 			
 	$DECLARE curTexton CURSOR FOR selTexton;
+}
+
+void CreaPrepare2(void){
+$char sql[10000];
+$char sAux[1000];
+
+	memset(sql, '\0', sizeof(sql));
+	memset(sAux, '\0', sizeof(sAux));
+
+	/******** cursor de OTs *******/
+	$PREPARE selOTS FROM "SELECT t1.mensaje_xnear, 
+		t1.osm_nro_orden, 
+		t1.tipo_orden,
+		t1.tema, 
+		t1.trabajo,
+		t1.osm_status, 
+		t1.osm_desc_status,
+		t1.ot_motivo,
+		t1.fecha_inicio,
+		t1.osm_fecha_status, 
+		t1.osm_hora_status,
+		t1.numero_cliente,
+		t1.fecha_sts_fmt
+		FROM tempo1 t1
+		WHERE t1.indice = (select max(t2.indice) from tempo1 t2
+			where t2.osm_nro_orden =t1.osm_nro_orden)		
+		ORDER BY 1 ";
+		
+	$DECLARE curOTS CURSOR WITH HOLD FOR selOTS;
+
 }
 
 void FechaGeneracionFormateada( Fecha )
@@ -528,19 +572,17 @@ $ClsOT *reg;
 
 	$FETCH curOTS INTO
 		:reg->nro_mensaje,
-		:reg->nro_ot,
-		:reg->nro_orden,
+		:reg->sap_nro_ot,
 		:reg->tipo_orden,
 		:reg->tema,
 		:reg->trabajo,
-		:reg->etapa,
-		:reg->histo_status,
-		:reg->fecha_evento,
-		:reg->ot_cod_motivo,
-		:reg->estado_mensaje,
 		:reg->sap_status,
+		:reg->desc_status,
+		:reg->ot_cod_motivo,
+		:reg->fecha_inicio,
+		:reg->fecha_status,
+		:reg->hora_status,
 		:reg->numero_cliente,
-		:reg->sap_nro_ot,
 		:reg->fecha_evento_fmt;
 	
     if ( SQLCODE != 0 ){
@@ -551,19 +593,16 @@ $ClsOT *reg;
 			exit(1);	
 		}
     }			
-
-   
-   alltrim(reg->nro_orden, ' ');
-   alltrim(reg->tipo_orden, ' ');
-   alltrim(reg->tema, ' ');
-   alltrim(reg->trabajo, ' ');
-   alltrim(reg->etapa, ' ');
-   alltrim(reg->histo_status, ' ');
-   alltrim(reg->fecha_evento, ' ');
-   alltrim(reg->ot_cod_motivo, ' ');
-   alltrim(reg->sap_status, ' ');
-   alltrim(reg->sap_nro_ot, ' ');
-   alltrim(reg->fecha_evento_fmt, ' ');
+	alltrim(reg->sap_nro_ot, ' ');
+	alltrim(reg->tipo_orden, ' ');
+	alltrim(reg->tema, ' ');
+	alltrim(reg->trabajo, ' ');
+	alltrim(reg->sap_status, ' ');
+	alltrim(reg->desc_status, ' ');
+	alltrim(reg->ot_cod_motivo, ' ');
+	alltrim(reg->fecha_inicio, ' ');
+	alltrim(reg->hora_status, ' ');
+	alltrim(reg->fecha_evento_fmt, ' ');
    
    memset(sTipoOt, '\0', sizeof(sTipoOt));
    
@@ -576,9 +615,17 @@ $ClsOT *reg;
    }
 
    $EXECUTE selMotivoOt INTO :reg->descri_motivo USING :sTipoOt, :reg->ot_cod_motivo;
-   
-   alltrim(reg->descri_motivo, ' ');
 
+	if(SQLCODE != 0){
+		if(SQLCODE == 100){
+			strcpy(sTipoOt, "TRABAJ");
+			
+			$EXECUTE selMotivoOt INTO :reg->descri_motivo USING :sTipoOt, :reg->reg->trabajo;
+		}else{
+			printf("Mensaje %ld OT %s motivo %s. Error al buscar motivo\n", reg->nro_mensaje, reg->sap_nro_ot, reg->ot_cod_motivo);
+		}
+	}
+   alltrim(reg->descri_motivo, ' ');
 
           
 	$OPEN curTexton USING :reg->nro_mensaje;
@@ -601,25 +648,24 @@ void InicializaOT(reg)
 $ClsOT	*reg;
 {
 
-   rsetnull(CLONGTYPE, (char *) &(reg->nro_mensaje));
-   rsetnull(CINTTYPE, (char *) &(reg->nro_ot));
-   memset(reg->nro_orden, '\0', sizeof(reg->nro_orden));
-   memset(reg->tipo_orden, '\0', sizeof(reg->tipo_orden));
-   memset(reg->tema, '\0', sizeof(reg->tema));
-   memset(reg->trabajo, '\0', sizeof(reg->trabajo));
-   memset(reg->etapa, '\0', sizeof(reg->etapa));
-   memset(reg->histo_status, '\0', sizeof(reg->histo_status));
-   memset(reg->fecha_evento, '\0', sizeof(reg->fecha_evento));
-   memset(reg->ot_cod_motivo, '\0', sizeof(reg->ot_cod_motivo));
-   rsetnull(CINTTYPE, (char *) &(reg->estado_mensaje));
-   memset(reg->sap_status, '\0', sizeof(reg->sap_status));
-   rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
-   memset(reg->sap_nro_ot, '\0', sizeof(reg->sap_nro_ot));
-   memset(reg->fecha_evento_fmt, '\0', sizeof(reg->fecha_evento_fmt));
-   
-   memset(reg->descri_motivo, '\0', sizeof(reg->descri_motivo));
-   memset(reg->sTexton, '\0', sizeof(reg->sTexton));
-   
+	rsetnull(CLONGTYPE, (char *) &(reg->nro_mensaje));
+	memset(reg->nro_orden, '\0', sizeof(reg->nro_orden));
+	memset(reg->sap_nro_ot, '\0', sizeof(reg->sap_nro_ot));
+	memset(reg->tipo_orden, '\0', sizeof(reg->tipo_orden));
+	memset(reg->tema, '\0', sizeof(reg->tema));
+	memset(reg->trabajo, '\0', sizeof(reg->trabajo));
+	memset(reg->sap_status, '\0', sizeof(reg->sap_status));
+	memset(reg->desc_status, '\0', sizeof(reg->desc_status));
+	memset(reg->ot_cod_motivo, '\0', sizeof(reg->ot_cod_motivo));
+	memset(reg->fecha_inicio, '\0', sizeof(reg->fecha_inicio));
+	rsetnull(CLONGTYPE, (char *) &(reg->fecha_status));
+	memset(reg->ot_cod_motivo, '\0', sizeof(reg->hora_status));
+	rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
+	memset(reg->fecha_evento_fmt, '\0', sizeof(reg->fecha_evento_fmt));
+
+	memset(reg->descri_motivo, '\0', sizeof(reg->descri_motivo));
+	memset(reg->sTexton, '\0', sizeof(reg->sTexton));
+
 }
 
 short LeoTexton(reg)
@@ -665,7 +711,9 @@ FILE 		*fp;
 $ClsOT		reg;
 {
 	char	sLinea[15000];	
-	int   iRcv;
+	int   	iRcv;
+	long 	lNroOrden;
+
    
 	memset(sLinea, '\0', sizeof(sLinea));
 
@@ -679,7 +727,8 @@ $ClsOT		reg;
    sprintf(sLinea, "%s\"%08ldWOARG\";", sLinea, reg.nro_mensaje);
    
    /* Order Number */
-   sprintf(sLinea, "%s\"%08ld\";", sLinea, reg.nro_mensaje);
+   /*sprintf(sLinea, "%s\"%08ld\";", sLinea, reg.nro_mensaje);*/
+   sprintf(sLinea, "%s\"%s\";", sLinea, reg.sap_nro_ot);
    
    /* Rol */
    strcat(sLinea, "\"\";");
@@ -691,11 +740,14 @@ $ClsOT		reg;
    sprintf(sLinea, "%s\"%s\";", sLinea, reg.sTexton);
 
    /* Estado */
+/*   
    if(strcmp(reg.sap_status, "")!=0){
 		sprintf(sLinea, "%s\"%s\";", sLinea, reg.sap_status);
    }else{
 		sprintf(sLinea, "%s\"%s\";", sLinea, reg.histo_status);
    }
+*/
+	sprintf(sLinea, "%s\"%s\";", sLinea, reg.desc_status);
 
    /* Fecha Estado */
    sprintf(sLinea, "%s\"%s\";", sLinea, reg.fecha_evento_fmt);
