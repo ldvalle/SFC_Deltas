@@ -100,7 +100,7 @@ $long lNroCliente;
    fp=pFileUnx;
 printf("Cargando Temporal\n");   
 	/****** Cargo Temporal ********/
-	$EXECUTE insOts USING :glFechaDesde, :glFechaHasta, :glFechaDesde, :glFechaHasta;
+	$EXECUTE insOts USING :glFechaDesde, :glFechaHasta, :glFechaDesde, :glFechaHasta,:glFechaDesde, :glFechaHasta, :glFechaDesde, :glFechaHasta;
 	
 	if( SQLCODE != 0){
 		printf("Fallo Carga de Temporal\n");
@@ -364,11 +364,13 @@ $char sAux[1000];
 		s.osm_fecha_status, 
 		s.osm_hora_status,
 		o.numero_cliente,
-		TO_CHAR(s.osm_fecha_status, '%Y-%m-%dT') || TO_CHAR(s.osm_hora_status, '%H:%M:%S.000Z') fecha_sts_fmt
+		TO_CHAR(s.osm_fecha_status, '%Y-%m-%dT') || TO_CHAR(s.osm_hora_status, '%H:%M:%S.000Z') fecha_sts_fmt,
+		LPAD(to_number(s.osm_nro_orden[3,12]), 8, '0') external_id
 		FROM ot_sap_mac s, ot_mac m, orden o
 		WHERE s.osm_fecha_status BETWEEN ? AND ?
 		AND m.ot_nro_orden = s.osm_nro_orden[5,12]
 		AND o.mensaje_xnear = m.ot_mensaje_xnear
+		AND o.term_dir != 'SALESFORCE'
 		UNION
 		SELECT s.rowid indice, 
 		o.mensaje_xnear, 
@@ -384,13 +386,59 @@ $char sAux[1000];
 		s.osm_fecha_status, 
 		s.osm_hora_status,
 		o.numero_cliente,
-		TO_CHAR(s.osm_fecha_status, '%Y-%m-%dT') || TO_CHAR(s.osm_hora_status, '%H:%M:%S.000Z') fecha_sts_fmt
-		FROM ot_sap_mac s
-		, ot_final m
-		, orden o
+		TO_CHAR(s.osm_fecha_status, '%Y-%m-%dT') || TO_CHAR(s.osm_hora_status, '%H:%M:%S.000Z') fecha_sts_fmt,
+		LPAD(to_number(s.osm_nro_orden[3,12]), 8, '0') external_id
+		FROM ot_sap_mac s, ot_final m, orden o
 		WHERE s.osm_fecha_status BETWEEN ? AND ?
 		AND m.otf_nro_orden = s.osm_nro_orden[5,12]
 		AND o.mensaje_xnear = m.mensaje_xnear
+		AND o.term_dir != 'SALESFORCE'
+		UNION
+		SELECT s.rowid indice,
+		0 mensaje_xear,
+		to_char(g.ot_nro_orden) numero_orden,
+		s.osm_nro_orden, 
+		'GIS' tipo_orden,
+		g.ot_anomalia tema, 
+		g.ot_tipo_traba trabajo, 
+		s.osm_status, 
+		s.osm_desc_status, 
+		/*m.ot_motivo, */
+		g.ot_motivo,
+		g.ot_fecha_creacion fecha_inicio, 
+		s.osm_fecha_status, 
+		s.osm_hora_status,
+		g.ot_numero_cliente numero_cliente,
+		TO_CHAR(s.osm_fecha_status, '%Y-%m-%dT') || TO_CHAR(s.osm_hora_status, '%H:%M:%S.000Z') fecha_sts_fmt,
+		LPAD(to_number(s.osm_nro_orden[3,12]), 8, '0') external_id
+		FROM ot_sap_mac s, ot_mac m, ot_gise g
+		WHERE s.osm_fecha_status BETWEEN ? AND ?
+		AND m.ot_nro_orden = s.osm_nro_orden[5,12]
+		AND m.ot_gise = 'S'
+		AND g.ot_nro_orden = m.ot_nro_orden
+		UNION
+		SELECT s.rowid indice,
+		0 mensaje_xnear,
+		to_char(g.ot_nro_orden) numero_orden,
+		s.osm_nro_orden, 
+		'GIS' tipo_orden,
+		g.ot_anomalia tema, 
+		g.ot_tipo_traba trabajo, 
+		s.osm_status, 
+		s.osm_desc_status, 
+		/*m.cod_motivo, */
+		g.ot_motivo,
+		g.ot_fecha_creacion fecha_inicio, 
+		s.osm_fecha_status, 
+		s.osm_hora_status,
+		g.ot_numero_cliente numero_cliente,
+		TO_CHAR(s.osm_fecha_status, '%Y-%m-%dT') || TO_CHAR(s.osm_hora_status, '%H:%M:%S.000Z') fecha_sts_fmt,
+		LPAD(to_number(s.osm_nro_orden[3,12]), 8, '0') external_id
+		FROM ot_sap_mac s, ot_final m, ot_gise g
+		WHERE s.osm_fecha_status BETWEEN ? AND ?
+		AND m.otf_nro_orden = s.osm_nro_orden[5,12]
+		AND m.otf_gise = 'S'
+		AND g.ot_nro_orden = m.otf_nro_orden
 		INTO TEMP tempo1 WITH NO LOG ";
 		
 
@@ -509,7 +557,8 @@ $char sAux[1000];
 		t1.osm_fecha_status, 
 		t1.osm_hora_status,
 		t1.numero_cliente,
-		t1.fecha_sts_fmt
+		t1.fecha_sts_fmt,
+		t1.external_id
 		FROM tempo1 t1
 		WHERE t1.indice = (select max(t2.indice) from tempo1 t2
 			where t2.osm_nro_orden =t1.osm_nro_orden)		
@@ -583,7 +632,8 @@ $ClsOT *reg;
 		:reg->fecha_status,
 		:reg->hora_status,
 		:reg->numero_cliente,
-		:reg->fecha_evento_fmt;
+		:reg->fecha_evento_fmt,
+		:reg->external_id;
 	
     if ( SQLCODE != 0 ){
     	if(SQLCODE == 100){
@@ -606,40 +656,46 @@ $ClsOT *reg;
    
    memset(sTipoOt, '\0', sizeof(sTipoOt));
    
-   if(strcmp(reg->tipo_orden , "OT")==0 || strcmp(reg->tipo_orden , "OC")==0){ 
-		strcpy(sTipoOt, "OTMOSO");
-   }else if(strcmp(reg->tipo_orden, "MAN")==0){
-	    strcpy(sTipoOt, "OTMOMA");
-   }else if(strcmp(reg->tipo_orden, "RET")==0){
-	    strcpy(sTipoOt, "OTMORE");	   
-   }
+   if(strcmp(reg->tipo_orden, "GIS")!=0){
+	   if(strcmp(reg->tipo_orden , "OT")==0 || strcmp(reg->tipo_orden , "OC")==0){ 
+			strcpy(sTipoOt, "OTMOSO");
+	   }else if(strcmp(reg->tipo_orden, "MAN")==0){
+			strcpy(sTipoOt, "OTMOMA");
+	   }else if(strcmp(reg->tipo_orden, "RET")==0){
+			strcpy(sTipoOt, "OTMORE");
+	   }
 
-   $EXECUTE selMotivoOt INTO :reg->descri_motivo USING :sTipoOt, :reg->ot_cod_motivo;
+	   $EXECUTE selMotivoOt INTO :reg->descri_motivo USING :sTipoOt, :reg->ot_cod_motivo;
 
-	if(SQLCODE != 0){
-		if(SQLCODE == 100){
-			strcpy(sTipoOt, "TRABAJ");
-			
-			$EXECUTE selMotivoOt INTO :reg->descri_motivo USING :sTipoOt, :reg->reg->trabajo;
-		}else{
-			printf("Mensaje %ld OT %s motivo %s. Error al buscar motivo\n", reg->nro_mensaje, reg->sap_nro_ot, reg->ot_cod_motivo);
+		if(SQLCODE != 0){
+			if(SQLCODE == 100){
+				strcpy(sTipoOt, "TRABAJ");
+				
+				$EXECUTE selMotivoOt INTO :reg->descri_motivo USING :sTipoOt, :reg->trabajo;
+			}else{
+				printf("Mensaje %ld OT %s motivo %s. Error al buscar motivo\n", reg->nro_mensaje, reg->sap_nro_ot, reg->ot_cod_motivo);
+			}
 		}
-	}
+   }else{
+	   sprintf(reg->descri_motivo, "Motivo GISE %s", reg->ot_cod_motivo);
+   }
+   
    alltrim(reg->descri_motivo, ' ');
 
-          
-	$OPEN curTexton USING :reg->nro_mensaje;
+    if( reg->nro_mensaje > 0){     
+		$OPEN curTexton USING :reg->nro_mensaje;
 
-	while(LeoTexton(&regTex)){
+		while(LeoTexton(&regTex)){
 
-		if(regTex.iPag==1){
-			strcpy(reg->sTexton, regTex.sTexto);
-		}else{
-			sprintf(reg->sTexton, "%s%s", reg->sTexton, regTex.sTexto);
+			if(regTex.iPag==1){
+				strcpy(reg->sTexton, regTex.sTexto);
+			}else{
+				sprintf(reg->sTexton, "%s%s", reg->sTexton, regTex.sTexto);
+			}
 		}
-	}
 
-	$CLOSE curTexton;
+		$CLOSE curTexton;
+	}
 	
 	return 1;	
 }
@@ -662,6 +718,7 @@ $ClsOT	*reg;
 	memset(reg->ot_cod_motivo, '\0', sizeof(reg->hora_status));
 	rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
 	memset(reg->fecha_evento_fmt, '\0', sizeof(reg->fecha_evento_fmt));
+	memset(reg->external_id, '\0', sizeof(reg->external_id));
 
 	memset(reg->descri_motivo, '\0', sizeof(reg->descri_motivo));
 	memset(reg->sTexton, '\0', sizeof(reg->sTexton));
@@ -724,7 +781,8 @@ $ClsOT		reg;
    sprintf(sLinea, "%s\"%ldARG\";",sLinea, reg.numero_cliente);   
    
    /* External ID */
-   sprintf(sLinea, "%s\"%08ldWOARG\";", sLinea, reg.nro_mensaje);
+   /*sprintf(sLinea, "%s\"%08ldWOARG\";", sLinea, reg.nro_mensaje);*/
+   sprintf(sLinea, "%s\"%sWOARG\";", sLinea, reg.external_id);
    
    /* Order Number */
    /*sprintf(sLinea, "%s\"%08ld\";", sLinea, reg.nro_mensaje);*/
@@ -737,7 +795,11 @@ $ClsOT		reg;
    sprintf(sLinea, "%s\"%s\";", sLinea, reg.descri_motivo);
 
    /* Descripcion */
-   sprintf(sLinea, "%s\"%s\";", sLinea, reg.sTexton);
+   if(strcmp(reg.sTexton, "")!=0){
+		sprintf(sLinea, "%s\"%s\";", sLinea, reg.sTexton);
+   }else{
+		strcat(sLinea, "\"\";");
+   }
 
    /* Estado */
 /*   

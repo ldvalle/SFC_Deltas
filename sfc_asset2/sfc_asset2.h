@@ -18,6 +18,7 @@ $include datetime.h;
 $typedef struct{
 	long 	numero_cliente;
 	double	potencia_inst_fp;
+	double  potencia_contrato;
 	char	tipo_suministro[51];
 	char	tipo_cliente[51];
 	char	desc_tarifa[51];

@@ -2,7 +2,7 @@ PROGRAM = actutec.exe
 
 OBJECTS = actutec.o 
 
-OBJS_LIB = sqlerror.o
+OBJS_LIB = sqlerror.o ustring.o
 
 OTROS = 
 
@@ -15,9 +15,13 @@ OTROS =
 #UPDATE#
 
 actutec.o : actutec.ec                                                    \
-            sqlerror.h 
+            sqlerror.h                                                     \
+            ustring.h 
 
 sqlerror.o : sqlerror.ec                                                  \
              sqlerror.h 
+
+ustring.o : ustring.c                      \
+            ustring.h
 
 #ENDUPDATE#

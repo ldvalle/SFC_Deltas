@@ -486,6 +486,7 @@ $char sAux[1000];
 	/******** Cursor CLIENTES  ****************/
 	strcpy(sql, "SELECT c.numero_cliente, ");
 	strcat(sql, "c.potencia_inst_fp, ");
+	strcat(sql, "c.potencia_contrato, ");
 	strcat(sql, "TRIM(t1.descripcion) tipo_suministro, ");
 	strcat(sql, "TRIM(t2.descripcion) tipo_cliente, ");
 
@@ -505,11 +506,11 @@ if(giTipoCorrida==1){
    strcat(sql, ", migra_sf ma ");
 }   
 	strcat(sql, "WHERE c.estado_cliente = 0 ");
-
+/*
 	strcat(sql, "AND c.tipo_sum NOT IN ( 1, 5 ) ");
 	strcat(sql, "AND c.tipo_cliente NOT IN ( 'CP', 'IP', 'JP', 'JU', 'LO', 'LS', 'OC' ) ");
 	strcat(sql, "AND c.tarifa NOT IN ( '1GB', '1JB', '1JM', '1RB', 'PGM', 'PJM', 'PRB' ) ");
-	
+*/	
 	strcat(sql, "AND t1.nomtabla = 'TIPSUM' ");
 	strcat(sql, "AND t1.sucursal = '0000' ");
 	strcat(sql, "AND t1.codigo = c.tipo_sum ");
@@ -605,6 +606,7 @@ $ClsCliente *reg;
 	$FETCH curClientes INTO
       :reg->numero_cliente,
       :reg->potencia_inst_fp,
+      :reg->potencia_contrato,
       :reg->tipo_suministro,
       :reg->tipo_cliente,
       :reg->desc_tarifa,
@@ -636,6 +638,7 @@ $ClsCliente	*reg;
 
    rsetnull(CLONGTYPE, (char *) &(reg->numero_cliente));
    rsetnull(CDOUBLETYPE, (char *) &(reg->potencia_inst_fp));
+   rsetnull(CDOUBLETYPE, (char *) &(reg->potencia_contrato));
    
    memset(reg->tipo_suministro, '\0', sizeof(reg->tipo_suministro));
    memset(reg->tipo_cliente, '\0', sizeof(reg->tipo_cliente));
@@ -661,8 +664,12 @@ $ClsCliente		reg;
 	strcat(sLinea, "\"Tarifa T1\";");
 	   
 	/* Potencia */
-	/*sprintf(sLinea, "%s\"%.02lf\";", sLinea, reg.potencia_inst_fp);*/
-	sprintf(sLinea, "%s\"%.0lf\";", sLinea, reg.potencia_inst_fp);
+	if(reg.potencia_inst_fp > 0.00){
+		sprintf(sLinea, "%s\"%.02lf\";", sLinea, reg.potencia_inst_fp);
+	}else{
+		sprintf(sLinea, "%s\"%.02lf\";", sLinea, reg.potencia_contrato);
+	}
+	
 	
 	/* Tipo suministro */
 	sprintf(sLinea, "%s\"%s\";", sLinea, reg.tipo_suministro);

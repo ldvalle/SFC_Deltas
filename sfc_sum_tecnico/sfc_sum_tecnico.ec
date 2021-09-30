@@ -139,7 +139,7 @@ $long lNroCliente;
 	}
 */
 	printf("==============================================\n");
-	printf("CONVENIOS\n");
+	printf("SUMINISTROS TECNICOS\n");
 	printf("==============================================\n");
 	printf("Proceso Concluido.\n");
 	printf("==============================================\n");

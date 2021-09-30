@@ -25,6 +25,9 @@
  *
  *  $Log:   /usr/pvcs/Proyectos/synergia/medid/esqlc/actutec/actutec.ecv  $
  * 
+ *    Rev 1.13   24 Sep 2021 15:25:06   ldvalle
+ * MIGRACION. Se registra en MODIF algunas modificaciones de data tecnica
+ *  
  *    Rev 1.12   10 Sep 2014 15:25:06   aarrien
  * ME159 - Se preparan sentencias y otras modif para mejorar perf.
  * 
@@ -79,6 +82,7 @@
 #include <dirent.h>
 #include <time.h>
 #include <sqlerror.h>
+#include <ustring.h>
 
 EXEC SQL include sqltypes ;
 
@@ -162,6 +166,7 @@ int  gv_strpat(char *string1 ,char *string2);
 int  getArchivo(char *cDir, char *cPat, char *cFile);
 char * cambia_caracter(char * cad, char * caracter);
 void Upd_Ubica_Geo_Cliente(long pRue, T_Tec pTec);/*DJOHNSON OMxxxx 22/02/2011*/
+void RegCambios(long pRue, T_Tec pTec);  /* LDVALLE MIGRACION 24/09/2021*/
 /* ----------------------------------------------------- */
 /* Comienzo */
 void
@@ -231,10 +236,13 @@ main(int argc, char **argv)
         nRue = getCampos(cLinea, &rTec);
         
         if (fndTecni(nRue) > 0) {
+			RegCambios(nRue, rTec); /* Migracion SDF 09/2021 */
+
             updTecni(nRue, rTec);
             /* PDP - ER1379 - Si x ó y no tiene valores coherentes no actualizo UBICA_GEO_CLIENTE */
             if (rTec.Ugeo_x >= 1 && rTec.Ugeo_y >= 1)
-                Upd_Ubica_Geo_Cliente(nRue, rTec); /* DJOHNSON OMxxxx 22/02/2011 */
+                Upd_Ubica_Geo_Cliente(nRue, rTec);
+
         } else {
             ; /* Si no encuentra el RUE no lo agrega */
         }
@@ -752,3 +760,73 @@ void Upd_Ubica_Geo_Cliente(long pRue, T_Tec pTec)
 					:xnRue;
 
 }
+
+void RegCambios(pRue, pTec)
+$long 	pRue;
+$T_Tec	pTec;
+{
+	static int iPrepSelDataCli = 0;
+	static int iPrepRegCambioDataCli = 0;
+	
+	$char	tec_centro_trans[21];
+	$char	tec_alimentador[12];
+	$char	tec_subestacion[4];
+	$char	sDatoVjo[56];
+	$char	sDatoNvo[56];
+
+	int iFlag=0;
+	
+	memset(tec_centro_trans, '\0', sizeof(tec_centro_trans));
+	memset(tec_alimentador, '\0', sizeof(tec_alimentador));
+	memset(tec_subestacion, '\0', sizeof(tec_subestacion));
+
+	memset(sDatoVjo, '\0', sizeof(sDatoVjo));
+	memset(sDatoNvo, '\0', sizeof(sDatoNvo));
+	
+	if (!iPrepSelDataCli){
+		$PREPARE selDataCli FROM "SELECT tec_subestacion, tec_alimentador,  tec_centro_trans 
+			FROM tecni WHERE numero_cliente = ? ";
+			
+		iPrepSelDataCli = 1;
+	}
+	
+	if (!iPrepRegCambioDataCli){
+		$PREPARE regCambiosData FROM "INSERT INTO modif(numero_cliente, tipo_orden, ficha, fecha_modif, tipo_cliente, 
+		codigo_modif, dato_anterior, dato_nuevo, proced, dir_ip)VALUES(
+		?, 'MOD', 'CERTA', CURRENT, 'A', '700', ?, ?, 'ACTUTEC', '192.9.120.1') ";
+			
+		iPrepRegCambioDataCli = 1;
+	}
+	
+	$EXECUTE selDataCli INTO :tec_subestacion, :tec_alimentador, :tec_centro_trans USING :pRue;
+	
+	if(SQLCODE == 0){
+		
+		alltrim(tec_subestacion, ' ');
+		alltrim(tec_alimentador, ' ');
+		alltrim(tec_centro_trans, ' ');
+		alltrim(pTec.tec_subestacion, ' ');
+		alltrim(pTec.tec_alimentador, ' ');
+		alltrim(pTec.tec_centro_trans, ' ');
+		
+		if(strcmp(tec_subestacion, pTec.tec_subestacion)!=0){
+			sprintf(sDatoVjo, "SUBESTACION-%s", tec_subestacion);
+			sprintf(sDatoNvo, "SUBESTACION-%s", pTec.tec_subestacion);
+			iFlag=1;
+		}else if(strcmp(tec_alimentador, pTec.tec_alimentador)!=0){
+			sprintf(sDatoVjo, "ALIMENTADOR-%s", tec_alimentador);
+			sprintf(sDatoNvo, "ALIMENTADOR-%s", pTec.tec_alimentador);
+			iFlag=1;
+		}else if(strcmp(tec_centro_trans, pTec.tec_centro_trans)!=0){
+			sprintf(sDatoVjo, "CENTRO_TRANS-%s", tec_centro_trans);
+			sprintf(sDatoNvo, "CENTRO_TRANS-%s", pTec.tec_centro_trans);
+			iFlag=1;
+		}
+		
+		if(iFlag==1){
+			$EXECUTE regCambiosData USING :pRue, :sDatoVjo, :sDatoNvo;
+		}
+	}
+	
+}
+

@@ -511,6 +511,7 @@ $char sAux[1000];
   67 Acometida
   2   ruta lectura
   201 tension
+  700 Cambios en TECNI por Alimentador, Ctro.Tras y Subestacion
 
 */   
 /*
@@ -529,7 +530,7 @@ $char sAux[1000];
 		SELECT m.numero_cliente FROM modif m
 		WHERE m.fecha_modif BETWEEN ? AND ?
 		AND m.tipo_orden = 'MOD'
-		AND m.codigo_modif IN ('211', '67', '2', '201')
+		AND m.codigo_modif IN ('211', '67', '2', '201', '700')
 		AND TRIM(m.ficha) != 'SALESFORCE' ";
 		
 

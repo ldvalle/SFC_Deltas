@@ -31,9 +31,10 @@ $typedef struct{
 	char	hora_status[9];
 	long 	numero_cliente;
 	char	fecha_evento_fmt[30];
-
+	char	external_id[9];
 	char	descri_motivo[51];
 	char	sTexton[10240];
+	
 }ClsOT;
 
 $typedef struct{
